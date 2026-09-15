@@ -1,0 +1,35 @@
+sample_id,body_site,subject,year,month,day,days_since_start,antibiotic_usage
+L1S105,gut,subject-1,2009,3,17,140,No
+L1S140,gut,subject-2,2008,10,28,0,Yes
+L1S208,gut,subject-2,2009,1,20,84,No
+L1S257,gut,subject-2,2009,3,17,140,No
+L1S281,gut,subject-2,2009,4,14,168,No
+L1S57,gut,subject-1,2009,1,20,84,No
+L1S76,gut,subject-1,2009,2,17,112,No
+L1S8,gut,subject-1,2008,10,28,0,Yes
+L2S155,left palm,subject-1,2009,1,20,84,No
+L2S175,left palm,subject-1,2009,2,17,112,No
+L2S204,left palm,subject-1,2009,3,17,140,No
+L2S222,left palm,subject-1,2009,4,14,168,No
+L2S240,left palm,subject-2,2008,10,28,0,Yes
+L2S309,left palm,subject-2,2009,1,20,84,No
+L2S357,left palm,subject-2,2009,3,17,140,No
+L2S382,left palm,subject-2,2009,4,14,168,No
+L3S242,right palm,subject-1,2008,10,28,0,Yes
+L3S294,right palm,subject-1,2009,1,20,84,No
+L3S313,right palm,subject-1,2009,2,17,112,No
+L3S341,right palm,subject-1,2009,3,17,140,No
+L3S360,right palm,subject-1,2009,4,14,168,No
+L3S378,right palm,subject-2,2008,10,28,0,Yes
+L4S112,right palm,subject-2,2009,3,17,140,No
+L4S137,right palm,subject-2,2009,4,14,168,No
+L4S63,right palm,subject-2,2009,1,20,84,No
+L5S104,tongue,subject-1,2008,10,28,0,Yes
+L5S155,tongue,subject-1,2009,1,20,84,No
+L5S174,tongue,subject-1,2009,2,17,112,No
+L5S203,tongue,subject-1,2009,3,17,140,No
+L5S222,tongue,subject-1,2009,4,14,168,No
+L5S240,tongue,subject-2,2008,10,28,0,Yes
+L6S20,tongue,subject-2,2009,1,20,84,No
+L6S68,tongue,subject-2,2009,3,17,140,No
+L6S93,tongue,subject-2,2009,4,14,168,No
