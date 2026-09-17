@@ -97,29 +97,37 @@ def plot_taxa_barplot(
 
 def plot_diff_abundance(
     result: pd.DataFrame,
-    alpha: float = 0.05,
-    log2fc_threshold: float = 1.0,
     ax=None,
-    title: str = "Differential abundance",
+    title: str = "Differential abundance (ANCOM)",
 ):
-    """Volcano plot (log2 fold-change vs -log10 q-value) from a differential_abundance result."""
+    """ANCOM plot: W-statistic (how many pairwise log-ratio tests a feature was
+    significant in, out of n_features - 1) vs. a log2 fold-change of group
+    medians, from a ``stats.differential_abundance`` result. Features ANCOM
+    itself declared differentially abundant (``reject_null``) are highlighted
+    — no separate significance threshold to choose, unlike a p/q-value volcano.
+    """
     ax = _get_ax(ax)
-    x = result["log2fc"]
-    y = -np.log10(result["qvalue"].replace(0, np.nextafter(0, 1)))
-    significant = (result["qvalue"] < alpha) & (x.abs() > log2fc_threshold)
+    median_cols = [c for c in result.columns if c.startswith("median_")]
+    if len(median_cols) != 2:
+        raise ValueError("expected exactly two 'median_<group>' columns in the ANCOM result")
+    col1, col2 = median_cols
+    eps = 1e-6
+    log2fc = np.log2((result[col1] + eps) / (result[col2] + eps))
+    significant = result["reject_null"].astype(bool)
 
-    ax.scatter(x[~significant], y[~significant], color="lightgrey", s=25, label="not significant")
     ax.scatter(
-        x[significant], y[significant], color=sns.color_palette(_PALETTE)[1], s=35, label="significant"
+        log2fc[~significant], result.loc[~significant, "W"],
+        color="lightgrey", s=25, label="not significant",
+    )
+    ax.scatter(
+        log2fc[significant], result.loc[significant, "W"],
+        color=sns.color_palette(_PALETTE)[1], s=35, label="significant (ANCOM)",
     )
     for feat in result.index[significant][:15]:
-        ax.annotate(feat, (x[feat], y[feat]), fontsize=7, alpha=0.8)
+        ax.annotate(feat, (log2fc[feat], result.loc[feat, "W"]), fontsize=7, alpha=0.8)
 
-    ax.axhline(-np.log10(alpha), color="grey", linestyle="--", linewidth=1)
-    ax.axvline(log2fc_threshold, color="grey", linestyle="--", linewidth=1)
-    ax.axvline(-log2fc_threshold, color="grey", linestyle="--", linewidth=1)
-    ax.set_xlabel("log2 fold-change")
-    ax.set_ylabel("-log10(q-value)")
+    ax.set_xlabel(f"log2 fold-change (median {col1[len('median_'):]} / {col2[len('median_'):]})")
+    ax.set_ylabel("W statistic")
     ax.set_title(title)
     ax.legend(frameon=False)
     return ax

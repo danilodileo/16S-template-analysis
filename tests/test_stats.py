@@ -13,7 +13,7 @@ def test_differential_abundance_recovers_known_signal():
     )
     result = differential_abundance(counts, groups)
     diff_features = set(counts.attrs["differential_features"])
-    top_hits = set(result.sort_values("qvalue").index[:5])
+    top_hits = set(result.sort_values("W", ascending=False).index[:5])
     assert len(top_hits & diff_features) >= 2  # noisy but should recover most
 
 
@@ -34,7 +34,7 @@ def test_differential_abundance_handles_unbalanced_group_sizes():
     counts.iloc[:, 0] = 0
     result = differential_abundance(counts, groups)
     assert result.shape[0] == counts.shape[1]
-    assert result.loc[counts.columns[0], "pvalue"] == 1.0
+    assert not result.loc[counts.columns[0], "reject_null"]
 
 
 def test_permanova_returns_valid_pvalue_range(amplicon_data):
