@@ -29,8 +29,8 @@ would hold up in a lab meeting.
 ## Install
 
 ```bash
-git clone https://github.com/danilodileo/16s-amplicon-diversity.git
-cd 16s-amplicon-diversity
+git clone https://github.com/danilodileo/16S-template-analysis.git
+cd 16S-template-analysis
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
