@@ -1,8 +1,21 @@
-"""Alpha diversity: within-sample community diversity metrics."""
+"""Alpha diversity: within-sample community diversity metrics.
+
+Thin wrappers around scikit-bio's ``skbio.diversity.alpha`` implementations —
+the same statistics ``vegan::diversity()`` / ``phyloseq::estimate_richness()``
+compute in R. scikit-bio's defaults already match the conventions used
+throughout this package (natural-log Shannon, ``1 - sum(p_i^2)`` Simpson,
+bias-corrected Chao1), so these wrappers exist to give a stable, table-aware
+API rather than to change the math. The one deliberate deviation: scikit-bio
+returns ``NaN`` for an empty (all-zero) sample, which this package treats as
+0 diversity instead — useful when a real table has samples that dropped to
+zero reads after QC filtering, since a ``NaN`` propagating into a groupby or
+boxplot is more disruptive than a defined zero.
+"""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import skbio.diversity.alpha as skbio_alpha
 
 
 def _as_array(counts: np.ndarray | pd.Series) -> np.ndarray:
@@ -12,53 +25,37 @@ def _as_array(counts: np.ndarray | pd.Series) -> np.ndarray:
     return arr
 
 
-def shannon(counts: np.ndarray | pd.Series, base: float = np.e) -> float:
-    """Shannon entropy index H' = -sum(p_i * log(p_i))."""
-    arr = _as_array(counts)
-    total = arr.sum()
-    if total == 0:
-        return 0.0
-    p = arr[arr > 0] / total
-    return float(-np.sum(p * np.log(p)) / np.log(base))
+def _zero_safe(metric):
+    def wrapped(counts: np.ndarray | pd.Series) -> float:
+        arr = _as_array(counts)
+        if arr.sum() == 0:
+            return 0.0
+        return float(metric(arr))
+
+    return wrapped
 
 
-def simpson(counts: np.ndarray | pd.Series) -> float:
-    """Simpson's diversity index 1 - sum(p_i^2) (probability two random draws differ)."""
-    arr = _as_array(counts)
-    total = arr.sum()
-    if total == 0:
-        return 0.0
-    p = arr / total
-    return float(1.0 - np.sum(p**2))
+shannon = _zero_safe(skbio_alpha.shannon)
+"""Shannon entropy index H' = -sum(p_i * log(p_i)), natural log."""
 
+simpson = _zero_safe(skbio_alpha.simpson)
+"""Simpson's diversity index 1 - sum(p_i^2) (probability two random draws differ)."""
 
-def pielou_evenness(counts: np.ndarray | pd.Series) -> float:
-    """Pielou's evenness J = H' / log(S), the observed richness."""
-    arr = _as_array(counts)
-    s = observed_features(arr)
-    if s <= 1:
-        return 0.0
-    return float(shannon(arr) / np.log(s))
+pielou_evenness = _zero_safe(skbio_alpha.pielou_e)
+"""Pielou's evenness J = H' / log(S), the observed richness."""
 
 
 def observed_features(counts: np.ndarray | pd.Series) -> int:
     """Number of features with a nonzero count (observed richness)."""
-    arr = _as_array(counts)
-    return int(np.sum(arr > 0))
+    return int(skbio_alpha.observed_features(_as_array(counts)))
 
 
 def chao1(counts: np.ndarray | pd.Series) -> float:
-    """Chao1 richness estimator, correcting observed richness for unseen rare taxa.
-
-    Chao1 = S_obs + f1(f1-1) / (2*(f2+1)), where f1/f2 are the number of
-    singleton/doubleton features.
+    """Bias-corrected Chao1 richness estimator, correcting observed richness
+    for unseen rare taxa: S_obs + f1(f1-1) / (2*(f2+1)), where f1/f2 are the
+    number of singleton/doubleton features.
     """
-    arr = _as_array(counts)
-    s_obs = observed_features(arr)
-    f1 = np.sum(arr == 1)
-    f2 = np.sum(arr == 2)
-    correction = f1 * (f1 - 1) / (2.0 * (f2 + 1))
-    return float(s_obs + correction)
+    return _zero_safe(lambda arr: skbio_alpha.chao1(arr, bias_corrected=True))(counts)
 
 
 _METRICS = {

@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import skbio
 from sklearn.manifold import MDS
 
 
 def pcoa(distance_matrix: pd.DataFrame, n_components: int = 2) -> tuple[pd.DataFrame, np.ndarray]:
     """Classical (metric) PCoA via eigendecomposition of the double-centered distance matrix.
+
+    Wraps ``skbio.stats.ordination.pcoa`` — the same computation
+    ``ape::pcoa()`` / ``vegan::wcmdscale()`` perform in R.
 
     Parameters
     ----------
@@ -23,26 +27,11 @@ def pcoa(distance_matrix: pd.DataFrame, n_components: int = 2) -> tuple[pd.DataF
     explained_variance_ratio : ndarray, shape (n_components,)
         Fraction of total (signed) eigenvalue sum explained by each axis.
     """
-    d = distance_matrix.values.astype(float)
-    n = d.shape[0]
-    d2 = d**2
-    centering = np.eye(n) - np.ones((n, n)) / n
-    b = -0.5 * centering @ d2 @ centering
-
-    eigvals, eigvecs = np.linalg.eigh(b)
-    order = np.argsort(eigvals)[::-1]
-    eigvals = eigvals[order]
-    eigvecs = eigvecs[:, order]
-
-    positive = np.clip(eigvals, 0, None)
-    total = positive.sum() if positive.sum() > 0 else 1.0
-    explained = positive[:n_components] / total
-
-    top_vals = np.clip(eigvals[:n_components], 0, None)
-    coords = eigvecs[:, :n_components] * np.sqrt(top_vals)
-    columns = [f"PC{i+1}" for i in range(n_components)]
-    coords_df = pd.DataFrame(coords, index=distance_matrix.index, columns=columns)
-    return coords_df, explained
+    dm = skbio.DistanceMatrix(distance_matrix.values, ids=distance_matrix.index.tolist())
+    result = skbio.stats.ordination.pcoa(dm, dimensions=n_components)
+    coords = result.samples.loc[distance_matrix.index]
+    explained = result.proportion_explained.values
+    return coords, explained
 
 
 def nmds(
@@ -53,6 +42,10 @@ def nmds(
     max_iter: int = 300,
 ) -> tuple[pd.DataFrame, float]:
     """Non-metric multidimensional scaling (NMDS) of a distance matrix.
+
+    Uses ``sklearn.manifold.MDS`` deliberately, not a scikit-bio equivalent —
+    scikit-bio doesn't implement NMDS, and ``scikit-learn``'s MDS (metric=False)
+    is the standard Python-side stand-in for ``vegan::metaMDS()``.
 
     Returns
     -------
