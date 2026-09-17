@@ -1,5 +1,7 @@
 # amplicon-diversity
 
+[![CI](https://github.com/danilodileo/16S-template-analysis/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/danilodileo/16S-template-analysis/actions/workflows/ci.yml)
+
 A small, well-tested Python toolkit for **16S/18S rRNA amplicon (ASV-based)**
 microbial community analysis: diversity ecology, taxonomic profiling, and
 machine learning on compositional data — with runnable examples, figures,
