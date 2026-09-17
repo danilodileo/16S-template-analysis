@@ -1,7 +1,9 @@
+import biom
 import pandas as pd
 import pytest
+from biom.util import biom_open
 
-from amplicon_diversity.io import load_abundance_table, save_abundance_table, validate_table
+from amplicon_diversity.io import load_abundance_table, load_biom_table, save_abundance_table, validate_table
 
 
 def test_save_and_load_roundtrip(tmp_path, amplicon_data):
@@ -26,6 +28,18 @@ def test_load_features_as_rows_transposes(tmp_path, amplicon_data):
     save_abundance_table(counts.T, path)
     loaded = load_abundance_table(path, samples_as_rows=False)
     pd.testing.assert_frame_equal(loaded, counts, check_dtype=False)
+
+
+def test_load_biom_table_roundtrip(tmp_path, amplicon_data):
+    counts, _ = amplicon_data
+    table = biom.Table(
+        counts.T.values, observation_ids=counts.columns.tolist(), sample_ids=counts.index.tolist()
+    )
+    path = tmp_path / "table.biom"
+    with biom_open(path, "w") as f:
+        table.to_hdf5(f, generated_by="test")
+    loaded = load_biom_table(path)
+    pd.testing.assert_frame_equal(loaded.loc[counts.index, counts.columns], counts, check_dtype=False)
 
 
 def test_validate_table_passes_on_good_table(amplicon_data):

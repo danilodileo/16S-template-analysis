@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import IO
 
+import biom
 import pandas as pd
 
 
@@ -30,6 +31,20 @@ def load_abundance_table(source: str | Path | IO, samples_as_rows: bool = True) 
     if not samples_as_rows:
         table = table.T
     return table
+
+
+def load_biom_table(path: str | Path) -> pd.DataFrame:
+    """Load a QIIME2/DADA2-native ``.biom`` feature table (e.g. unzipped from
+    a QIIME2 ``table.qza``) via the ``biom-format`` package, the same file
+    format a real amplicon pipeline outputs.
+
+    Returns a samples x features DataFrame of integer counts, matching this
+    package's convention throughout.
+    """
+    table = biom.load_table(str(path))
+    asv = table.to_dataframe(dense=True).T
+    asv.index.name = "sample_id"
+    return asv.astype(int)
 
 
 def save_abundance_table(table: pd.DataFrame, destination: str | Path) -> None:
