@@ -57,10 +57,7 @@ def chao1(counts: np.ndarray | pd.Series) -> float:
     s_obs = observed_features(arr)
     f1 = np.sum(arr == 1)
     f2 = np.sum(arr == 2)
-    if f2 == 0:
-        correction = f1 * (f1 - 1) / 2.0
-    else:
-        correction = (f1**2) / (2.0 * f2)
+    correction = f1 * (f1 - 1) / (2.0 * (f2 + 1))
     return float(s_obs + correction)
 
 
