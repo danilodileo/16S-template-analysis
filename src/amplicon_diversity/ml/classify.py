@@ -3,24 +3,30 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import skbio.stats.composition as composition
 from sklearn.base import ClassifierMixin, clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
 
-def clr_transform(table: pd.DataFrame, pseudocount: float = 1e-6) -> pd.DataFrame:
+def clr_transform(table: pd.DataFrame) -> pd.DataFrame:
     """Centered log-ratio (CLR) transform of a compositional (samples x features) table.
 
     CLR(x)_i = log(x_i) - mean_j(log(x_j)), computed per sample. This is the
     standard way to make compositional abundance data usable by models that
     assume unconstrained, roughly-Euclidean features (e.g. random forests,
     logistic regression, PCA).
+
+    Zeros are handled with ``skbio.stats.composition.multi_replace``
+    (multiplicative replacement) rather than an arbitrary additive
+    pseudocount, since it rescales the whole composition to stay on the
+    simplex instead of distorting it with an ad hoc constant.
     """
     rel = table.div(table.sum(axis=1).replace(0, 1), axis=0)
-    shifted = rel + pseudocount
-    log_vals = np.log(shifted)
-    return log_vals.sub(log_vals.mean(axis=1), axis=0)
+    positive = composition.multi_replace(rel.values)
+    clr_vals = composition.clr(positive)
+    return pd.DataFrame(clr_vals, index=table.index, columns=table.columns)
 
 
 def cross_validate_classifier(
