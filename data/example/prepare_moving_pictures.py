@@ -1,35 +1,44 @@
-"""Rebuild moving_pictures_{asv_table,taxonomy,metadata}.csv from the raw QIIME2 artifacts.
+"""Rebuild data/example/{feature-table.biom, taxonomy.tsv, tree.nwk, sample_metadata.tsv}
+from the raw QIIME2 artifacts.
 
-The CSVs in this folder are already committed, so you do not need to run this
-to use the toolkit. It is included for transparency/reproducibility: it shows
-exactly how the official QIIME2 tutorial artifacts were turned into the tidy
-tables used by examples/04_real_data_moving_pictures.py.
+These files are already committed, so you do not need to run this to use the
+toolkit. It is included for transparency/reproducibility: it shows exactly
+how the official QIIME2 tutorial artifacts were filtered for
+examples/04_real_data_moving_pictures.py. Unlike an earlier version of this
+script, it does not flatten anything to CSV — the committed files stay in
+their native QIIME2 formats (.biom feature table, a raw Feature ID/Taxon/
+Confidence taxonomy.tsv, a Newick tree), the same formats
+amplicon_diversity.io.load_biom_table / .taxonomy.parse_qiime2_taxonomy are
+built to read, and the same formats a real QIIME2 pipeline hands off to
+downstream analysis.
 
-Requires the `biom-format` package (not a runtime dependency of this
-toolkit — install it separately: `pip install biom-format`).
+Requires this package installed (`pip install -e .` from the repo root,
+already done in its own dev environment) plus `biom-format`.
 
 Usage
 -----
-1. Download the three official artifacts:
+1. Download the four official artifacts:
    curl -O https://docs.qiime2.org/2024.2/data/tutorials/moving-pictures/table.qza
    curl -O https://docs.qiime2.org/2024.2/data/tutorials/moving-pictures/taxonomy.qza
+   curl -O https://docs.qiime2.org/2024.2/data/tutorials/moving-pictures/rooted-tree.qza
    curl -O https://data.qiime2.org/2024.2/tutorials/moving-pictures/sample_metadata.tsv
 2. Unzip the .qza files (they are just zip archives) to get:
    - table.qza -> */data/feature-table.biom
    - taxonomy.qza -> */data/taxonomy.tsv
-3. python prepare_moving_pictures.py /path/to/feature-table.biom /path/to/taxonomy.tsv /path/to/sample_metadata.tsv
+   - rooted-tree.qza -> */data/tree.nwk
+3. python prepare_moving_pictures.py feature-table.biom taxonomy.tsv tree.nwk sample_metadata.tsv
 """
 import sys
 from pathlib import Path
 
 import biom
 import pandas as pd
+from biom.util import biom_open
 
-RANKS = ["domain", "phylum", "class", "order", "family", "genus", "species"]
-PREFIXES = ["k__", "p__", "c__", "o__", "f__", "g__", "s__"]
+from amplicon_diversity.taxonomy import parse_qiime2_taxonomy
 
 
-def main(biom_path: Path, taxonomy_path: Path, metadata_path: Path, out_dir: Path):
+def main(biom_path: Path, taxonomy_path: Path, tree_path: Path, metadata_path: Path, out_dir: Path):
     table = biom.load_table(str(biom_path))
     asv = table.to_dataframe(dense=True).T
     asv.index.name = "sample_id"
@@ -39,45 +48,56 @@ def main(biom_path: Path, taxonomy_path: Path, metadata_path: Path, out_dir: Pat
     meta = meta[meta["sample-id"] != "#q2:types"]
     meta = meta.rename(columns={"sample-id": "sample_id"}).set_index("sample_id")
     meta = meta[
-        ["body-site", "subject", "year", "month", "day", "days-since-experiment-start", "reported-antibiotic-usage"]
+        [
+            "body-site", "subject", "year", "month", "day",
+            "days-since-experiment-start", "reported-antibiotic-usage",
+        ]
     ]
     meta.columns = ["body_site", "subject", "year", "month", "day", "days_since_start", "antibiotic_usage"]
 
-    tax_raw = pd.read_csv(taxonomy_path, sep="\t")
-    tax_raw = tax_raw.rename(columns={"Feature ID": "feature_id", "Taxon": "taxon", "Confidence": "confidence"})
-    tax_raw = tax_raw.set_index("feature_id")
-
-    records = []
-    for fid, taxon in tax_raw["taxon"].items():
-        parts = [p.strip() for p in str(taxon).split(";")]
-        row = {"feature_id": fid}
-        for rank, prefix in zip(RANKS, PREFIXES):
-            row[rank] = next((p[len(prefix):] for p in parts if p.startswith(prefix)), "")
-        records.append(row)
-    taxonomy = pd.DataFrame(records).set_index("feature_id")
-    taxonomy["confidence"] = tax_raw["confidence"]
+    # parsed only to drive the QC filter below -- the committed taxonomy.tsv
+    # stays in raw QIIME2 lineage-string form, parsed at runtime by the
+    # example script itself via `taxonomy.parse_qiime2_taxonomy`.
+    taxonomy = parse_qiime2_taxonomy(taxonomy_path)
 
     shared_samples = asv.index.intersection(meta.index)
     asv = asv.loc[shared_samples]
     meta = meta.loc[shared_samples]
     asv = asv.loc[:, asv.sum(axis=0) > 0]
-    taxonomy = taxonomy.reindex(asv.columns)
 
     # standard QC: drop host-derived (mitochondria/chloroplast) ASVs
-    is_contaminant = (taxonomy["family"] == "mitochondria") | (taxonomy["class"] == "Chloroplast")
-    print(f"Removing {is_contaminant.sum()} host-derived ASVs of {taxonomy.shape[0]}")
-    taxonomy = taxonomy[~is_contaminant]
-    asv = asv[taxonomy.index.tolist()]
+    ranks = taxonomy.reindex(asv.columns)
+    is_contaminant = (ranks["family"] == "mitochondria") | (ranks["class"] == "Chloroplast")
+    print(f"Removing {is_contaminant.sum()} host-derived ASVs of {asv.shape[1]}")
+    asv = asv.loc[:, ~is_contaminant.values]
     asv = asv.loc[:, asv.sum(axis=0) > 0]
-    taxonomy = taxonomy.loc[asv.columns]
 
-    asv.to_csv(out_dir / "moving_pictures_asv_table.csv")
-    taxonomy.to_csv(out_dir / "moving_pictures_taxonomy.csv")
-    meta.to_csv(out_dir / "moving_pictures_metadata.csv")
+    tax_raw = pd.read_csv(taxonomy_path, sep="\t").set_index("Feature ID")
+    tax_raw = tax_raw.loc[asv.columns]
+    tax_raw.index.name = "Feature ID"  # .loc[] with an Index arg overwrites the index name
+
+    filtered_table = biom.Table(
+        asv.T.values, observation_ids=asv.columns.tolist(), sample_ids=asv.index.tolist()
+    )
+    with biom_open(out_dir / "feature-table.biom", "w") as f:
+        filtered_table.to_hdf5(f, generated_by="prepare_moving_pictures.py")
+
+    tax_raw.to_csv(out_dir / "taxonomy.tsv", sep="\t")
+    meta.to_csv(out_dir / "sample_metadata.tsv", sep="\t")
+    # the tree's tip set may be (and here, is) a superset of the QC-filtered
+    # ASVs -- skbio's UniFrac only requires the tree to cover the taxa used,
+    # not match them exactly -- so it's copied through unfiltered.
+    (out_dir / "tree.nwk").write_bytes(tree_path.read_bytes())
+
     print(f"Wrote {asv.shape[0]} samples x {asv.shape[1]} ASVs to {out_dir}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        sys.exit("usage: python prepare_moving_pictures.py feature-table.biom taxonomy.tsv sample_metadata.tsv")
-    main(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(__file__).parent)
+    if len(sys.argv) != 5:
+        sys.exit(
+            "usage: python prepare_moving_pictures.py "
+            "feature-table.biom taxonomy.tsv tree.nwk sample_metadata.tsv"
+        )
+    main(
+        Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]), Path(__file__).parent
+    )

@@ -1,10 +1,11 @@
 # Example data: QIIME2 "Moving Pictures" (Caporaso et al. 2011)
 
-`moving_pictures_asv_table.csv`, `moving_pictures_taxonomy.csv`, and
-`moving_pictures_metadata.csv` are a cleaned export of the official
-**QIIME2 "Moving Pictures" tutorial** dataset — the canonical example
-dataset for the QIIME2 amplicon pipeline, originally from **Caporaso et al.,
-"Moving pictures of the human microbiome"**, *Genome Biology*, 2011
+`feature-table.biom`, `taxonomy.tsv`, `tree.nwk`, and `sample_metadata.tsv`
+are a filtered export, kept in their **native QIIME2 formats** (not
+flattened to CSV), of the official **QIIME2 "Moving Pictures" tutorial**
+dataset — the canonical example dataset for the QIIME2 amplicon pipeline,
+originally from **Caporaso et al., "Moving pictures of the human
+microbiome"**, *Genome Biology*, 2011
 ([doi:10.1186/gb-2011-12-5-r50](https://doi.org/10.1186/gb-2011-12-5-r50)).
 
 Downloaded directly from QIIME2's own hosting (2024.2 release):
@@ -13,6 +14,8 @@ Downloaded directly from QIIME2's own hosting (2024.2 release):
   (DADA2-denoised — genuine **ASVs**, not 97%-similarity OTUs)
 - Taxonomy: <https://docs.qiime2.org/2024.2/data/tutorials/moving-pictures/taxonomy.qza>
   (`classify-sklearn` against Greengenes 13-8, 515F/806R region)
+- Phylogeny: <https://docs.qiime2.org/2024.2/data/tutorials/moving-pictures/rooted-tree.qza>
+  (used for UniFrac beta diversity)
 - Metadata: <https://data.qiime2.org/2024.2/tutorials/moving-pictures/sample_metadata.tsv>
 
 34 stool/skin/oral samples from 2 subjects, sampled repeatedly over ~18
@@ -27,16 +30,18 @@ biology.
 
 | File | Shape | Description |
 |---|---|---|
-| `moving_pictures_asv_table.csv` | 34 samples x 750 ASVs | Raw DADA2 counts, samples as rows. 20 host-derived (mitochondria/chloroplast) ASVs removed as a standard QC step. |
-| `moving_pictures_taxonomy.csv` | 750 ASVs x 8 columns | domain -> species lineage (Greengenes 13-8) + classifier confidence. `species` is mostly blank — 16S resolves reliably only to genus. |
-| `moving_pictures_metadata.csv` | 34 samples x 6 columns | `body_site`, `subject`, `year`/`month`/`day`, `days_since_start`, `antibiotic_usage` |
+| `feature-table.biom` | 34 samples x 750 ASVs | Raw DADA2 counts, QIIME2/biom-format native. 20 host-derived (mitochondria/chloroplast) ASVs removed as a standard QC step. Load with `amplicon_diversity.io.load_biom_table`. |
+| `taxonomy.tsv` | 750 ASVs x 3 columns | Raw `classify-sklearn` output (`Feature ID`, `Taxon`, `Confidence`) — the same `k__...;p__...;...;s__...` lineage-string format QIIME2 exports. Load/parse with `amplicon_diversity.taxonomy.parse_qiime2_taxonomy`; `species` comes back mostly blank — 16S resolves reliably only to genus. |
+| `tree.nwk` | 770 tips | Rooted phylogenetic tree (Newick), for UniFrac beta diversity. Tips are a superset of the 750 QC-filtered ASVs, which is all `skbio.diversity.beta_diversity(..., tree=...)` requires. Load with `skbio.TreeNode.read`. |
+| `sample_metadata.tsv` | 34 samples x 7 columns | `body_site`, `subject`, `year`/`month`/`day`, `days_since_start`, `antibiotic_usage` |
 
 Reproduced from the raw QIIME2 artifacts with
 [`prepare_moving_pictures.py`](prepare_moving_pictures.py): the feature
-table was extracted from the `.biom` file inside `table.qza` (via the
-`biom-format` package), taxonomy was parsed out of the
-`k__...;p__...;...;s__...` lineage string in `taxonomy.qza`, and both were
-aligned to the sample IDs in the metadata. See
+table was loaded from the `.biom` file inside `table.qza` (via the
+`biom-format` package) to drive the QC filtering; the filtered feature
+table, taxonomy, and tree are then re-saved in their **native QIIME2
+formats**, not flattened to CSV, so the example script demonstrates loading
+the same file formats a real QIIME2 pipeline actually outputs. See
 [`examples/04_real_data_moving_pictures.py`](../../examples/04_real_data_moving_pictures.py)
 for the full analysis built on top of it.
 
