@@ -27,7 +27,8 @@ def pcoa(distance_matrix: pd.DataFrame, n_components: int = 2) -> tuple[pd.DataF
     explained_variance_ratio : ndarray, shape (n_components,)
         Fraction of total (signed) eigenvalue sum explained by each axis.
     """
-    dm = skbio.DistanceMatrix(distance_matrix.values, ids=distance_matrix.index.tolist())
+    values = np.ascontiguousarray(distance_matrix.values, dtype=float)
+    dm = skbio.DistanceMatrix(values, ids=distance_matrix.index.tolist())
     result = skbio.stats.ordination.pcoa(dm, dimensions=n_components)
     coords = result.samples.loc[distance_matrix.index]
     explained = result.proportion_explained.values

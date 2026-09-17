@@ -1,6 +1,7 @@
 """Group-comparison statistics shared by the functional and diversity modules."""
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import skbio
 import skbio.stats.composition as composition
@@ -87,7 +88,8 @@ def permanova(
     dict with keys "test_statistic" (pseudo-F), "p_value", "n_permutations".
     """
     groups = groups.reindex(distance_matrix.index)
-    dm = skbio.DistanceMatrix(distance_matrix.values, ids=distance_matrix.index.tolist())
+    values = np.ascontiguousarray(distance_matrix.values, dtype=float)
+    dm = skbio.DistanceMatrix(values, ids=distance_matrix.index.tolist())
     result = skbio.stats.distance.permanova(
         dm, grouping=groups.values, permutations=n_permutations, seed=seed
     )
