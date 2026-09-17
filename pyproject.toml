@@ -22,6 +22,8 @@ dependencies = [
     "pandas>=1.5",
     "scipy>=1.9",
     "scikit-learn>=1.2",
+    "scikit-bio>=0.6",
+    "biom-format>=2.1",
     "matplotlib>=3.6",
     "seaborn>=0.12",
 ]
